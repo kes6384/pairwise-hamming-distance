@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "kc-c1.c"
 #include "khashl.h" // hash table
-KHASHL_MAP_INIT(, kc_c1_t, kc_c1, uint64_t, uint32_t, kh_hash_uint64, kh_eq_generic)
+//KHASHL_MAP_INIT(, kc_c1_t, kc_c1, uint64_t, uint32_t, kh_hash_uint64, kh_eq_generic)
 
 // Gets a sequence of length seqLen from the E. coli genome and encodes it as 2 bits for each character
 // seqLen - length of sequence to get
@@ -55,7 +55,6 @@ void getSequence(int seqLen , unsigned int* seq , int k , kc_c1_t *kmers)
         }
     }
     // Store all k-mers in hash table and find kmer counts
-    kmers = count_file(genome, k);
     fclose(genome);
 }
 
@@ -87,7 +86,7 @@ int hammingDist(unsigned int kmer , int kBits , kc_c1_t* kmers)
             partner = partner | (kmer % (4*i));
         if(partner != kmer)
         {
-            if(prefix_get(kmers, partner) == kh_end(kmers))
+            if(kc_c1_get(kmers, partner) == kh_end(kmers))
                 count++;
         }
         partner = 0;
@@ -97,7 +96,7 @@ int hammingDist(unsigned int kmer , int kBits , kc_c1_t* kmers)
             partner = partner | (kmer % (4*i));
         if(partner != kmer)
         {
-            if(prefix_get(kmers, partner) == kh_end(kmers))
+            if(kc_c1_get(kmers, partner) == kh_end(kmers))
                 count++;
         }
         partner = 0;
@@ -107,7 +106,7 @@ int hammingDist(unsigned int kmer , int kBits , kc_c1_t* kmers)
             partner = partner | (kmer % (4*i));
         if(partner != kmer)
         {
-            if(prefix_get(kmers, partner) == kh_end(kmers))
+            if(kc_c1_get(kmers, partner) == kh_end(kmers))
                 count++;
         }
         partner = 0;
@@ -117,7 +116,7 @@ int hammingDist(unsigned int kmer , int kBits , kc_c1_t* kmers)
             partner = partner | (kmer % (4*i));
         if(partner != kmer)
         {
-            if(prefix_get(kmers, partner) == kh_end(kmers))
+            if(kc_c1_get(kmers, partner) == kh_end(kmers))
                 count++;
         }
     }
@@ -138,7 +137,7 @@ void output(int count , int len)
     fclose(out);
 }
 
-void main()
+int main()
 {
     int seqLen = 20; // Sequence length
     int kVal = 2; // k-mer length
@@ -148,6 +147,8 @@ void main()
 
     // Get sequence and store kmers
     unsigned int *sequence = calloc(ceil(((float)seqLen*2)/8) , 1);
+    char *file = "Escherichia_coli_0_1288_GCA_000303255.LargeContigs.fna";
+    kmers = count_file(file, kVal);
     getSequence(seqLen , sequence , kVal , kmers);
 
     free(sequence);
@@ -155,7 +156,6 @@ void main()
     // Tracks how many pairs had a Hamming distance of 1
     int count = 0;
     // Check each k-mer for HD = 1 partners
-    khint_t pos;
     for(int pos=0; pos<kh_end(kmers); pos++)
     {
         uint64_t kmer = kh_key(kmers, pos);
@@ -164,4 +164,6 @@ void main()
 
     kc_c1_destroy(kmers);
     output(count/2 , kVal);
+
+    return 0;
 }
