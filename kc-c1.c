@@ -30,25 +30,53 @@ const unsigned char seq_nt4_table[256] = { // translate ACGT to 0123
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
 };
 
-static void count_seq(kc_c1_t *h, int k, int len, char *seq) // insert k-mers in $seq to hash table $h
+static void count_seq(kc_c1_t *h, int k, int len, char *seq)
+{
+    int i, l = 0;
+    uint64_t x = 0;
+    uint64_t mask = (k == 32) ? ~0ULL : ((1ULL << (2 * k)) - 1);
+
+    for (i = 0; i < len; ++i) {
+        int absent;
+        int c = seq_nt4_table[(uint8_t)seq[i]];  // A,C,G,T -> 0,1,2,3
+
+        if (c < 4) {
+            // build 2-bit encoded integer
+            x = ((x << 2) | (uint64_t)c) & mask;
+
+            if (++l >= k) {
+                // x IS the integer key (2*k bits)
+                khint_t itr = kc_c1_put(h, x, &absent);
+                if (absent) kh_val(h, itr) = 0;
+                ++kh_val(h, itr);
+            }
+        } else {
+            // reset on invalid base (e.g., 'N')
+            l = 0;
+            x = 0;
+        }
+    }
+}
+
+/*static void count_seq(kc_c1_t *h, int k, int len, char *seq) // insert k-mers in $seq to hash table $h
 {
 	int i, l;
-	uint64_t x[2], mask = (1ULL<<k*2) - 1, shift = (k - 1) * 2;
-	for (i = l = 0, x[0] = x[1] = 0; i < len; ++i) {
+	//uint64_t x[2], mask = (1ULL<<k*2) - 1, shift = (k - 1) * 2;
+	for (i = l = 0; i < len; ++i) {
 		int absent, c = seq_nt4_table[(uint8_t)seq[i]];
 		if (c < 4) { // not an "N" base
-			x[0] = (x[0] << 2 | c) & mask;                  // forward strand
-			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
+			//x[0] = (x[0] << 2 | c) & mask;                  // forward strand
+			//x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
 			if (++l >= k) { // we find a k-mer
 				khint_t itr;
-				uint64_t y = x[0] < x[1]? x[0] : x[1];
+				uint64_t y = c;
 				itr = kc_c1_put(h, y, &absent); // only add one strand!
 				if (absent) kh_val(h, itr) = 0;
 				++kh_val(h, itr);
 			}
-		} else l = 0, x[0] = x[1] = 0; // if there is an "N", restart
+		} else l = 0; // if there is an "N", restart
 	}
-}
+}*/
 
 static kc_c1_t *count_file(const char *fn, int k)
 {
