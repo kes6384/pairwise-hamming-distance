@@ -99,7 +99,7 @@ void storeKmers(unsigned int *seq , int subseqStart , int kBits , unsigned int *
 }
 
 // Find the Hamming distance of two k-mers of length k
-// k-mers are subsequences stored in kmers array
+// k-mers are subsequences stored with counts in kmers hash table
 int hammingDist(uint32_t subseq1 , uint32_t subseq2 , int k)
 {
     unsigned int result = subseq1 ^ subseq2;
@@ -110,7 +110,7 @@ int hammingDist(uint32_t subseq1 , uint32_t subseq2 , int k)
         // Check character
         int nxtChar = result % 4;
         if(nxtChar != 0)
-            dist ++; // or do (1st or 2nd)
+            dist ++;
         // Move to next character
         result = result >> 2;
     }
@@ -120,15 +120,16 @@ int hammingDist(uint32_t subseq1 , uint32_t subseq2 , int k)
 
 // Output array of Hamming distance counts to a text file
 // dists - array of Hamming distance counts
+// rate - sampling rate (theta1 * theta2)
 // len - length of array of Hamming distance counts (equivalent to k-mer size + 1, since HD ranges from 0 to k)
-void output(int *dists , int len)
+void output(int *dists , float rate , int len)
 {
     FILE* out = fopen("HDSampling_output.txt" , "w");
 
     fprintf(out , "Hamming Distance : Number of Pairs");
     for(int i=0; i<=len; i++)
     {
-        fprintf(out , "\n%d : %d" , i , dists[i]/2);
+        fprintf(out , "\n%d : %d" , i , (int)(dists[i]/(2 * rate)));
     }
 
     fclose(out);
@@ -138,17 +139,18 @@ static int compare_ints(const void *a, const void *b, void *udata) {
     return a == b;
 }
 
+// args: sequence length, k, theta1, theta2, file name
 int main(int argc, char *argv[])
 {
-    int seqLen = 100000; // Sequence length
-    int kVal = 16; // k-mer length
+    int seqLen = atoi(argv[1]); // Sequence length
+    int kVal = atoi(argv[2]); // k-mer length
     int kBits = 2*kVal;
     murmurLen(ceil(kBits/8));
     // Hash table for storing all k-mer counts
     kc_c1_t *kmers;
     // Sampling rates
-    float theta1 = 1.0;
-    float theta2 = 1.0;
+    float theta1 = atof(argv[3]);
+    float theta2 = atof(argv[4]);
     // Hash function seeds
     srand(time(NULL));
     uint32_t seed1 = rand();
@@ -163,7 +165,7 @@ int main(int argc, char *argv[])
                                      //hashmap_murmur, compare_ints, NULL, NULL);
 
     unsigned int *sequence = calloc(ceil(((float)seqLen*2)/8) , 1);
-    char *file = "test2_100000Chars.fna.txt";
+    char *file = argv[5];
     //char *file = "test.fna";
     kmers = count_file(file, kVal);
     getSequence(seqLen , sequence);
@@ -187,6 +189,7 @@ int main(int argc, char *argv[])
             //printf("result:%u , if:%u\n" , *result , ((float)*result/(float)UINT32_MAX));
             if(((float)*result/(float)UINT32_MAX) < theta1)
             {
+                //printf("!");
                 khint_t itr;
                 int absent;
 
@@ -225,7 +228,11 @@ int main(int argc, char *argv[])
                     uint32_t kmer2 = kh_key(col , j);
                     //printf("%d , %d\n" , kmer1 , kmer2);
                     if(kmer1 != kmer2)
-                        dists[hammingDist(kmer1 , kmer2 , kVal)] ++;
+                    {
+                        int count1 = kh_val(kmers , kc_c1_get(kmers , kmer1));
+                        int count2 = kh_val(kmers , kc_c1_get(kmers , kmer2));
+                        dists[hammingDist(kmer1 , kmer2 , kVal)] += (count1 * count2);
+                    }
                 }
             }
         }
@@ -236,7 +243,7 @@ int main(int argc, char *argv[])
     kc_c1_destroy(kmers);
     kc_c1_destroy(row);
     kc_c1_destroy(col);
-    output(dists , kVal);
+    output(dists , (theta1 * theta2) , kVal);
     free(dists);
 
     return 0;
