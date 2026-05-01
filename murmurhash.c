@@ -7,7 +7,7 @@
 // compile and run any of them on any platform, but your performance with the
 // non-native version will be less than optimal.
 
-#include "murmurHash.h"
+#include "murmurhash.h"
 #include <stdint.h>
 #include <stdlib.h>
 
