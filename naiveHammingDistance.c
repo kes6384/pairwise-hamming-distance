@@ -83,8 +83,9 @@ int main(int argc, char *argv[])
     int seqLen = atoi(argv[1]); // Sequence length
     int kVal = atoi(argv[2]); // k-mer length
 
+    char *file = argv[3];
     char *sequence = calloc(seqLen , sizeof(char));
-    getSequence(seqLen , sequence , argv[3]);
+    getSequence(seqLen , sequence , file);
 
     // Tracks how many pairs had a Hamming distance of i, where i is an index of the array
     int *dists = (int *)calloc(kVal+1 , sizeof(int));
@@ -95,9 +96,14 @@ int main(int argc, char *argv[])
         for(int j = i+1; j < (seqLen-kVal)+1; j +=1)
         {
             if(i!=j)
+            {
                 dists[hammingDist(&sequence[i] , &sequence[j] , kVal)] ++;
+            }
         }
     }
+
+    // Ignore duplicates
+    dists[0] = 0;
 
     free(sequence);
     output(dists , kVal);
