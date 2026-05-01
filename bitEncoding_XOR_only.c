@@ -1,4 +1,5 @@
-//Naive algorithm for finding the Hammond Distance profile of a given sequence
+//Algorithm for finding the Hammond Distance profile of a given sequence
+//Uses XOR and stores kmers in a hashtable
 //Takes FASTA files as input
 //Outputs a text file representing the histogram of Hammond Distances between k-mers
 
@@ -6,6 +7,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
+#include <stdint.h>
+#include "kc-c1.c" // k-mer counting
+#include "khashl.h" // hash table
 
 // Gets a sequence of length seqLen from the E. coli genome and encodes it as 2 bits for each character
 // seqLen - length of sequence to get
@@ -53,12 +58,24 @@ void getSequence(int seqLen , unsigned int* seq)
     fclose(genome);
 }
 
+// Helper function for hashing
+// Calculates the key for a k-mer in the hash table
+// Keys are based on the integer value of the bit-encoded k-mer
+int getKey(unsigned int kmer , int kBits)
+{
+    // Largest possible key = kmer with all bits set
+    unsigned int maxKey = (unsigned int)(pow(2 , kBits) - 1);
+
+    return maxKey - kmer;
+}
+
 // Separate out and store all of the kmers in the sequence
 // k-mers are subsequences of array of bits specified by seq
 // k-mers start at bit index of seq specified by subseqStart param
 // k-mers have length of kBits bits
 // k-mers are stored in array kmers and are indexed by their starting position in the original sequence
-void storeKmers(unsigned int *seq , int subseqStart , int kBits , unsigned int *kmers)
+// counts tracks the occurrences of each k-mer
+void storeKmers(unsigned int *seq , int subseqStart , int kBits , unsigned int *kmers , unsigned int *counts)
 {
     // Get subsequences, which are currently assumed to be <=16 characters (ie k <= 16)
     int subseqStartArrayPos = subseqStart/32;
@@ -72,19 +89,16 @@ void storeKmers(unsigned int *seq , int subseqStart , int kBits , unsigned int *
     unsigned int cut = (unsigned int)(pow(2 , kBits) - 1);
     subseq = subseq & cut;
 
+    counts[getKey(subseq , kBits)] += 1;
+
     // Store kmer
     kmers[subseqStart] = subseq;
 }
 
 // Find the Hamming distance of two k-mers of length k
-// k-mers are subsequences stored in kmers array
-// k-mers start at bits specified by subseq1Start and subseq2Start params
-int hammingDist(unsigned int *kmers , int subseq1Start , int subseq2Start , int k)
+// k-mers are subsequences stored with counts in kmers hash table
+int hammingDist(uint32_t subseq1 , uint32_t subseq2 , int k)
 {
-    // Get k-mers out of kmers array
-    unsigned int subseq1 = kmers[subseq1Start];
-    unsigned int subseq2 = kmers[subseq2Start];
-
     unsigned int result = subseq1 ^ subseq2;
 
     int dist = 0;
@@ -103,54 +117,73 @@ int hammingDist(unsigned int *kmers , int subseq1Start , int subseq2Start , int 
 
 // Output array of Hamming distance counts to a text file
 // dists - array of Hamming distance counts
+// rate - sampling rate (theta1 * theta2)
 // len - length of array of Hamming distance counts (equivalent to k-mer size + 1, since HD ranges from 0 to k)
 void output(int *dists , int len)
 {
-    FILE* out = fopen("bitEncodingXOR_Output.txt" , "w");
+    FILE* out = fopen("HD_XOR_output.txt" , "w");
 
     fprintf(out , "Hamming Distance : Number of Pairs");
     for(int i=0; i<=len; i++)
     {
-        fprintf(out , "\n%d : %d" , i , dists[i]);
+        fprintf(out , "\n%d : %d" , i , (int)(dists[i]/(2)));
     }
 
     fclose(out);
 }
 
-void main()
+// args: sequence length, k, file name
+int main(int argc, char *argv[])
 {
-    int seqLen = 100000; // Sequence length
-    int kVal = 16; // k-mer length
+    int seqLen = atoi(argv[1]); // Sequence length
+    int kVal = atoi(argv[2]); // k-mer length
+    //int kBits = 2*kVal;
+    // Hash table for storing all k-mer counts
+    kc_c1_t *kmers;
 
     unsigned int *sequence = calloc(ceil(((float)seqLen*2)/8) , 1);
+    char *file = argv[3];
+    //char *file = "test.fna";
+    kmers = count_file(file, kVal);
     getSequence(seqLen , sequence);
 
     // Tracks how many pairs had a Hamming distance of i, where i is an index of the array
     int *dists = (int *)calloc(kVal+1 , sizeof(int));
 
-    // Separate out and store all k-mers
-    int kBits = 2*kVal;
-    unsigned int *kmers = calloc(seqLen-kVal , kBits);
-    for(int i = 0; i < (seqLen-kVal)*2+1; i +=2)
-    {
-        storeKmers(sequence , i , kBits , kmers);
-    }
-
     free(sequence);
 
-    // Calculate Hamming distance for all k-mer pairs in the sequence
-    for(int i = 0; i < (seqLen-kVal)*2+1; i +=2)
+    void **kmer1 = malloc(sizeof(void *));
+    void **kmer2 = malloc(sizeof(void *));
+    // Calculate Hamming distance for sampled k-mers
+    for(int i = 0; i<kh_end(kmers); i +=1)
     {
-        for(int j = i+2; j < (seqLen-kVal)*2+1; j +=2)
+        if(kh_exist(kmers, i))
         {
-            if(i!=j)
+            //printf("!");
+            uint32_t kmer1 = kh_key(kmers , i);
+            //printf("%d\n" , kmer1);
+            for(int j = 0; j<kh_end(kmers); j +=1)
             {
-                dists[hammingDist(kmers , i , j , kVal)] ++;
+                if(kh_exist(kmers , j))
+                {
+                    uint32_t kmer2 = kh_key(kmers , j);
+                    //printf("%d , %d\n" , kmer1 , kmer2);
+                    if(kmer1 != kmer2)
+                    {
+                        int count1 = kh_val(kmers , kc_c1_get(kmers , kmer1));
+                        int count2 = kh_val(kmers , kc_c1_get(kmers , kmer2));
+                        dists[hammingDist(kmer1 , kmer2 , kVal)] += (count1 * count2);
+                    }
+                }
             }
         }
     }
+    free(kmer1);
+    free(kmer2);
 
-    free(kmers);
+    kc_c1_destroy(kmers);
     output(dists , kVal);
     free(dists);
+
+    return 0;
 }
