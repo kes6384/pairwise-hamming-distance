@@ -9,9 +9,9 @@
 // Gets a sequence of length seqLen from the E. coli genome
 // seqLen - length of sequence to get
 // seq - character array to store sequence in
-void getSequence(int seqLen , char* seq)
+void getSequence(int seqLen , char* seq , char* fileName)
 {
-    FILE* genome = fopen("Escherichia_coli_0_1288_GCA_000303255.LargeContigs.fna" , "r");
+    FILE* genome = fopen(fileName , "r");
 
     if(!genome)
         return;
@@ -77,13 +77,14 @@ void output(int *dists , int len)
     fclose(out);
 }
 
-void main()
+// args: sequence length, k, file name
+int main(int argc, char *argv[])
 {
-    int seqLen = 10000; // Sequence length
-    int kVal = 16; // k-mer length
+    int seqLen = atoi(argv[1]); // Sequence length
+    int kVal = atoi(argv[2]); // k-mer length
 
     char *sequence = calloc(seqLen , sizeof(char));
-    getSequence(seqLen , sequence);
+    getSequence(seqLen , sequence , argv[3]);
 
     // Tracks how many pairs had a Hamming distance of i, where i is an index of the array
     int *dists = (int *)calloc(kVal+1 , sizeof(int));
@@ -101,4 +102,6 @@ void main()
     free(sequence);
     output(dists , kVal);
     free(dists);
+
+    return 0;
 }
