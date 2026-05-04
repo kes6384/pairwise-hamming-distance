@@ -13,4 +13,4 @@ For users who are interested specifically in the number of k-mer pairs with a Ha
 
 ## Building Files
 
-bitEncoding_sampling.c and HD1.c should both be compiled using the following command: gcc -O2 -Wno-unused-function -o hd HD.c -lm -lz -lpthread. For the sampling method, the additional files murmurhash.c, murmurhash.h, kc-c1.c, and khash1.h files are required. For the Hamming distance of 1 method, only the kc-c1.c and khash1.h files are required.
+bitEncoding_sampling.c and HD1.c should both be compiled using the following command: gcc -O2 -Wno-unused-function -o [EXECUTABLE NAME] [SOURCE FILE NAME].c -lm -lz -lpthread. For the sampling method, the additional files murmurhash.c, murmurhash.h, kc-c1.c, and khash1.h files are required. For the Hamming distance of 1 method, only the kc-c1.c and khash1.h files are required.
